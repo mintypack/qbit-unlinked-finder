@@ -53,6 +53,7 @@ class NoQbit:
 
     connected = False
     ever_connected = False
+    last_error = "connection refused"
 
     def fetch_all(self):
         raise QbitError("down")

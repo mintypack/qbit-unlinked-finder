@@ -48,6 +48,10 @@ class RefreshManager:
     def qbit_state(self) -> str:
         return "connected" if self._qbit.connected else "disconnected"
 
+    @property
+    def qbit_error(self) -> str | None:
+        return self._qbit.last_error
+
     def roots_meta(self) -> list[dict]:
         downloads_dev = _dev_of(self._settings.scan.downloads_root)
         out = []

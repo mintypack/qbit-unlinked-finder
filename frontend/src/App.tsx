@@ -55,6 +55,7 @@ export default function App() {
           {meta.data?.qbit_state === "disconnected" && (
             <Alert severity="warning">
               qBittorrent unreachable, managed status may be stale or unknown.
+              {meta.data.qbit_error && ` Reason: ${meta.data.qbit_error}`}
             </Alert>
           )}
           {meta.data?.last_scan_error && (

@@ -14,6 +14,7 @@ def get_meta(request: Request) -> dict:
         "last_scan_error": rm.last_scan_error,
         "scan_warnings": rm.scan_warnings,
         "qbit_state": rm.qbit_state,
+        "qbit_error": rm.qbit_error,
         "downloads_root": str(settings.scan.downloads_root),
         "destination_roots": rm.roots_meta(),
         "counts": dict(rm.index.counts),

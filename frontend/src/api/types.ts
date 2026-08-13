@@ -33,6 +33,7 @@ export interface Meta {
   last_scan_error: string | null;
   scan_warnings: number;
   qbit_state: "connected" | "disconnected";
+  qbit_error: string | null;
   downloads_root: string;
   destination_roots: DestinationRoot[];
   counts: Counts;

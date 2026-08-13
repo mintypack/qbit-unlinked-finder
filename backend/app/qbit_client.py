@@ -30,16 +30,20 @@ class QbitClient:
             host=conf.url, username=conf.username, password=conf.password
         )
         self._rid = 0
+        self._known_hashes: set[str] = set()
         self.connected = False
         self.ever_connected = False
+        self.last_error: str | None = None
 
     def _mark_ok(self) -> None:
         self.connected = True
         self.ever_connected = True
+        self.last_error = None
 
     def _mark_fail(self, exc: Exception) -> QbitError:
         self.connected = False
         self._rid = 0
+        self.last_error = str(exc)
         return QbitError(str(exc))
 
     def fetch_all(self) -> list[TorrentInfo]:
@@ -62,15 +66,27 @@ class QbitClient:
             raise self._mark_fail(exc) from exc
 
     def poll(self) -> bool:
-        """Return True when the torrent set changed since the last poll."""
+        """Return True when the torrent set changed since the last poll.
+
+        Speed and progress updates arrive on every sync and must not count;
+        only additions, removals, renames, and path changes matter."""
         try:
             data = self._client.sync_maindata(rid=self._rid)
             self._rid = data.get("rid", 0)
             self._mark_ok()
-            return bool(
-                data.get("full_update")
-                or data.get("torrents")
-                or data.get("torrents_removed")
-            )
+            if data.get("full_update"):
+                self._known_hashes = set(data.get("torrents") or {})
+                return True
+            changed = False
+            for h, fields in (data.get("torrents") or {}).items():
+                if h not in self._known_hashes:
+                    self._known_hashes.add(h)
+                    changed = True
+                elif {"save_path", "content_path", "name"} & set(fields):
+                    changed = True
+            for h in data.get("torrents_removed") or []:
+                self._known_hashes.discard(h)
+                changed = True
+            return changed
         except Exception as exc:
             raise self._mark_fail(exc) from exc
