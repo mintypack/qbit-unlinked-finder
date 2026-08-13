@@ -6,9 +6,11 @@ import Container from "@mui/material/Container";
 import Stack from "@mui/material/Stack";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
+import Snackbar from "@mui/material/Snackbar";
 import { useCallback, useState } from "react";
 import type { Item } from "./api/types";
 import { EntriesGrid } from "./components/EntriesGrid";
+import { HardlinkDialog } from "./components/HardlinkDialog";
 import { RescanButton } from "./components/RescanButton";
 import { SearchBar } from "./components/SearchBar";
 import { StatusFilter, type Filters } from "./components/StatusFilter";
@@ -23,6 +25,7 @@ export default function App() {
   const [filters, setFilters] = useState<Filters>({});
   const [expanded, setExpanded] = useState<string | null>(null);
   const [linkTarget, setLinkTarget] = useState<Item | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const entries = useEntries(q, filters.linkStatus, filters.managedStatus);
   const scanning = meta.data?.scan_state === "scanning";
   const onSearch = useCallback((next: string) => setQ(next), []);
@@ -79,8 +82,23 @@ export default function App() {
             onExpand={setExpanded}
             onLink={setLinkTarget}
           />
-          {/* Hardlink dialog mounts here in the next task */}
-          {linkTarget && null}
+          {linkTarget && meta.data && (
+            <HardlinkDialog
+              item={linkTarget}
+              roots={meta.data.destination_roots}
+              open
+              onClose={(msg) => {
+                setLinkTarget(null);
+                if (msg) setToast(msg);
+              }}
+            />
+          )}
+          <Snackbar
+            open={toast !== null}
+            autoHideDuration={5000}
+            onClose={() => setToast(null)}
+            message={toast ?? ""}
+          />
         </Stack>
       </Container>
     </Box>
