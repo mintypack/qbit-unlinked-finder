@@ -108,3 +108,90 @@ def test_root_file_counts_reported(tree):
     result = scan(scan_conf(downloads), [dest(tv)], view(downloads))
     assert result.root_file_counts[str(downloads)] == 1
     assert result.root_file_counts[str(tv)] == 1
+
+
+def test_unlinked_when_nlink_one(tree):
+    _, downloads, tv = tree
+    t = make_torrent(downloads, "A", {"f.mkv": b"a"})
+    result = scan(scan_conf(downloads), [dest(tv)], view(downloads, t))
+    assert result.items[0].link_status == LinkStatus.UNLINKED
+
+
+def test_linked_when_inode_in_dest_root(tree):
+    _, downloads, tv = tree
+    t = make_torrent(downloads, "A", {"f.mkv": b"a"})
+    os.link(downloads / "A" / "f.mkv", tv / "f.mkv")
+    result = scan(scan_conf(downloads), [dest(tv)], view(downloads, t))
+    item = result.items[0]
+    assert item.link_status == LinkStatus.LINKED
+    assert item.files[0].linked_targets == (str(tv / "f.mkv"),)
+
+
+def test_cross_seed_accounted_inside_downloads(tree):
+    _, downloads, tv = tree
+    t1 = make_torrent(downloads, "A", {"f.mkv": b"a"})
+    (downloads / "B").mkdir()
+    os.link(downloads / "A" / "f.mkv", downloads / "B" / "f.mkv")
+    t2 = TorrentInfo(name="B", category="", content_path=str(downloads / "B"),
+                     files=(str(downloads / "B" / "f.mkv"),))
+    result = scan(scan_conf(downloads), [dest(tv)], view(downloads, t1, t2))
+    by_rel = {i.rel_path: i for i in result.items}
+    assert by_rel["A"].link_status == LinkStatus.CROSS_SEEDED
+    assert by_rel["A"].files[0].linked_targets == (str(downloads / "B" / "f.mkv"),)
+    assert by_rel["B"].link_status == LinkStatus.CROSS_SEEDED
+
+
+def test_extra_external_link_demotes_to_linked_elsewhere(tree, tmp_path):
+    _, downloads, tv = tree
+    t = make_torrent(downloads, "A", {"f.mkv": b"a"})
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    os.link(downloads / "A" / "f.mkv", outside / "f.mkv")
+    result = scan(scan_conf(downloads), [dest(tv)], view(downloads, t))
+    assert result.items[0].link_status == LinkStatus.LINKED_ELSEWHERE
+
+
+def test_partial_folder(tree):
+    _, downloads, tv = tree
+    t = make_torrent(downloads, "A", {"f1.mkv": b"a", "f2.mkv": b"b"})
+    os.link(downloads / "A" / "f1.mkv", tv / "f1.mkv")
+    result = scan(scan_conf(downloads), [dest(tv)], view(downloads, t))
+    assert result.items[0].link_status == LinkStatus.PARTIAL
+
+
+def test_dest_single_nlink_absent_from_map(tree):
+    _, downloads, tv = tree
+    (tv / "library.mkv").write_bytes(b"z")
+    t = make_torrent(downloads, "A", {"f.mkv": b"a"})
+    result = scan(scan_conf(downloads), [dest(tv)], view(downloads, t))
+    assert result.items[0].link_status == LinkStatus.UNLINKED
+
+
+def test_inode_identity_uses_dev_and_ino(tree, monkeypatch):
+    import app.scanner as scanner_mod
+
+    _, downloads, tv = tree
+    t = make_torrent(downloads, "A", {"f.mkv": b"a"})
+    os.link(downloads / "A" / "f.mkv", tv / "f.mkv")
+
+    class FakeStat:
+        def __init__(self, st):
+            object.__setattr__(self, "_st", st)
+
+        def __getattr__(self, k):
+            if k == "st_dev":
+                return self._st.st_dev + 1
+            return getattr(self._st, k)
+
+    orig = scanner_mod._Walker.stat_files
+
+    def patched(self, path, rel=""):
+        out = orig(self, path, rel)
+        if path == str(tv):
+            return [(p, r, FakeStat(st)) for p, r, st in out]
+        return out
+
+    monkeypatch.setattr(scanner_mod._Walker, "stat_files", patched)
+    result = scan(scan_conf(downloads), [dest(tv)], view(downloads, t))
+    # Same inode number, different dev: must NOT count as LINKED
+    assert result.items[0].link_status == LinkStatus.LINKED_ELSEWHERE
