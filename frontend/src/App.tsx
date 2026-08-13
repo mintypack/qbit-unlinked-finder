@@ -6,14 +6,26 @@ import Container from "@mui/material/Container";
 import Stack from "@mui/material/Stack";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
+import { useCallback, useState } from "react";
+import type { Item } from "./api/types";
+import { EntriesGrid } from "./components/EntriesGrid";
+import { RescanButton } from "./components/RescanButton";
+import { SearchBar } from "./components/SearchBar";
+import { StatusFilter, type Filters } from "./components/StatusFilter";
+import { useEntries } from "./hooks/useEntries";
 import { useMeta } from "./hooks/useMeta";
 import { useRescan } from "./hooks/useRescan";
-import { RescanButton } from "./components/RescanButton";
 
 export default function App() {
   const meta = useMeta();
   const rescan = useRescan();
+  const [q, setQ] = useState("");
+  const [filters, setFilters] = useState<Filters>({});
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [linkTarget, setLinkTarget] = useState<Item | null>(null);
+  const entries = useEntries(q, filters.linkStatus, filters.managedStatus);
   const scanning = meta.data?.scan_state === "scanning";
+  const onSearch = useCallback((next: string) => setQ(next), []);
 
   return (
     <Box sx={{ minHeight: "100vh" }}>
@@ -55,17 +67,22 @@ export default function App() {
               {meta.data.last_scan_error}
             </Alert>
           )}
-          {meta.data && <MainView counts={meta.data.counts}
-                                  roots={meta.data.destination_roots} />}
+          <SearchBar value={q} onChange={onSearch} />
+          {meta.data && (
+            <StatusFilter counts={meta.data.counts} filters={filters}
+                          onChange={setFilters} />
+          )}
+          <EntriesGrid
+            items={entries.data?.items ?? []}
+            loading={entries.isPending || !!scanning}
+            expanded={expanded}
+            onExpand={setExpanded}
+            onLink={setLinkTarget}
+          />
+          {/* Hardlink dialog mounts here in the next task */}
+          {linkTarget && null}
         </Stack>
       </Container>
     </Box>
   );
-}
-
-import type { Counts, DestinationRoot } from "./api/types";
-
-// Grid, search, and filters land in the next task
-function MainView(_props: { counts: Counts; roots: DestinationRoot[] }) {
-  return null;
 }
