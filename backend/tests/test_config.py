@@ -26,8 +26,9 @@ def test_example_config_parses_and_validates():
     s = load_settings(EXAMPLE)
     assert s.scan.rescan_interval_seconds == 900
     assert s.destination_roots[0].categories == ["movies"]
-    assert s.destination_roots[2].categories == []
-    assert s.qbittorrent.path_mappings[0].from_ == "/downloads"
+    assert s.destination_roots[1].categories == ["tv-shows"]
+    assert s.qbittorrent.path_mappings[0].from_ == "/config/qBittorrent/downloads"
+    assert s.qbittorrent.path_mappings[0].to == "/data/downloads"
     assert "nas.local" in s.server.allowed_hosts
 
 

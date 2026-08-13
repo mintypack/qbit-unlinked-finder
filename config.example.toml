@@ -9,31 +9,27 @@ username = "admin"
 # Rewrites qBittorrent's paths to this app's view. First matching prefix
 # wins; list longer prefixes first.
 [[qbittorrent.path_mappings]]
-from = "/downloads"
-to = "/data/torrents"
+from = "/config/qBittorrent/downloads"
+to = "/data/downloads"
 
 [scan]
-downloads_root = "/data/torrents"
+downloads_root = "/data/downloads"
 # Optional. Excluded from scanning.
-incomplete_dir = "/data/torrents/.incomplete"
+#incomplete_dir = "/data/downloads/.incomplete"
 # Full rescan interval in seconds.
 rescan_interval_seconds = 900
 
 # One block per destination root. Optional categories preselect this root
 # in the hardlink dialog for those qBittorrent categories.
 [[destination_roots]]
-path = "/data/media/Movies"
+path = "/data/Media/Movies"
 label = "Movies"
 categories = ["movies"]
 
 [[destination_roots]]
-path = "/data/media/TV"
+path = "/data/Media/TV-Shows"
 label = "TV"
 categories = ["tv-shows"]
-
-[[destination_roots]]
-path = "/data/media/Music"
-label = "Music"
 
 [server]
 # Host names/addresses this app may be reached at; others are rejected.
