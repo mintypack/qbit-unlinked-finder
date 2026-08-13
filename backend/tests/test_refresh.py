@@ -78,3 +78,16 @@ def test_roots_meta_linkable(tree, monkeypatch):
     monkeypatch.setattr("app.refresh._dev_of", lambda p: hash(str(p)) % 100000)
     metas = rm.roots_meta()
     assert metas[0]["linkable"] is False and "filesystem" in metas[0]["reason"]
+
+
+def test_zero_interval_disables_periodic(tree):
+    _, downloads, tv = tree
+    settings = settings_for(downloads, tv)
+    settings.scan.rescan_interval_seconds = 0
+    rm = RefreshManager(settings, NoQbit())
+
+    async def run():
+        # Must return immediately instead of busy-looping
+        await asyncio.wait_for(rm.periodic(), timeout=1)
+
+    asyncio.run(run())

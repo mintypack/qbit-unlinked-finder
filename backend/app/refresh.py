@@ -134,7 +134,10 @@ class RefreshManager:
                 self._journal.append(patch)
 
     async def periodic(self) -> None:
+        # Non-positive interval disables the periodic rescan entirely
         interval = self._settings.scan.rescan_interval_seconds
+        if interval <= 0:
+            return
         while True:
             await asyncio.sleep(interval)
             await self.run_scan()
