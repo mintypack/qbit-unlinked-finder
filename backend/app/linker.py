@@ -34,6 +34,7 @@ class PlanFile:
     source_rel_path: str
     dest_path: str
     action: str
+    existing_target: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,7 +73,7 @@ class Linker:
         self._lock = threading.Lock()
 
     def _validate(self, req: HardlinkRequest,
-                  index: Index) -> tuple[DownloadItem, Path, Path]:
+                  index: Index) -> tuple[DownloadItem, Path, Path, Path]:
         downloads = Path(self._settings.scan.downloads_root).resolve()
         item = index.by_rel_path.get(req.source_rel_path)
         source = (downloads / req.source_rel_path).resolve()
@@ -92,9 +93,27 @@ class Linker:
                 "CROSS_FILESYSTEM",
                 f"{root} is on a different filesystem than the source. "
                 "Hardlinks only work within one filesystem.")
-        return item, source, dest
+        return item, source, dest, root
 
-    def _plan(self, item: DownloadItem, source: Path, dest: Path) -> Plan:
+    def _existing_link(self, entry, src: Path, root: Path) -> str | None:
+        # The scan records link targets by inode, so a file renamed for the
+        # media server is still found here even though its path no longer
+        # matches. Targets are re-stat'd because the snapshot can be stale.
+        for target in entry.linked_targets:
+            path = Path(target)
+            if not path.is_relative_to(root):
+                continue
+            try:
+                st = os.stat(path, follow_symlinks=False)
+                src_st = os.stat(src, follow_symlinks=False)
+            except OSError:
+                continue
+            if (st.st_dev, st.st_ino) == (src_st.st_dev, src_st.st_ino):
+                return target
+        return None
+
+    def _plan(self, item: DownloadItem, source: Path, dest: Path,
+              root: Path) -> Plan:
         # Collision resolution: skip same inode, refuse different inode
         files: list[PlanFile] = []
         collisions: list[str] = []
@@ -105,8 +124,14 @@ class Linker:
             try:
                 st = os.stat(target, follow_symlinks=False)
             except FileNotFoundError:
-                files.append(PlanFile(f.rel_path, str(target), "LINK"))
-                will_link += 1
+                existing = self._existing_link(f, src, root)
+                if existing is not None:
+                    files.append(
+                        PlanFile(f.rel_path, str(target), "SKIP", existing))
+                    will_skip += 1
+                else:
+                    files.append(PlanFile(f.rel_path, str(target), "LINK"))
+                    will_link += 1
                 continue
             src_st = os.stat(src, follow_symlinks=False)
             if (st.st_dev, st.st_ino) == (src_st.st_dev, src_st.st_ino):
@@ -120,14 +145,14 @@ class Linker:
                     collisions=tuple(collisions))
 
     def preview(self, req: HardlinkRequest, index: Index) -> Plan:
-        item, source, dest = self._validate(req, index)
-        return self._plan(item, source, dest)
+        item, source, dest, root = self._validate(req, index)
+        return self._plan(item, source, dest, root)
 
     def execute(self, req: HardlinkRequest, index: Index) -> ExecuteResult:
         with self._lock:
             # Never trust a previous preview, re-validate from scratch
-            item, source, dest = self._validate(req, index)
-            plan = self._plan(item, source, dest)
+            item, source, dest, root = self._validate(req, index)
+            plan = self._plan(item, source, dest, root)
             if plan.collisions:
                 raise LinkError("COLLISION",
                                 f"existing file differs: {plan.collisions[0]}")

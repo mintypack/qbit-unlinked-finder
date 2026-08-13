@@ -106,7 +106,11 @@ export function HardlinkDialog({
               invalidate();
             }}
             fullWidth
-            helperText="Folder created inside the destination root"
+            helperText={
+              item.is_dir
+                ? "Folder created inside the destination root"
+                : "File name inside the destination root"
+            }
           />
           {error && <Alert severity="error">{error}</Alert>}
           {preview && (
@@ -122,6 +126,15 @@ export function HardlinkDialog({
                     <TableRow key={f.source_rel_path}>
                       <TableCell sx={{ fontFamily: "monospace" }}>
                         {f.source_rel_path}
+                        {f.existing_target && (
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ display: "block" }}
+                          >
+                            already at {f.existing_target}
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell
                         align="right"

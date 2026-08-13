@@ -14,7 +14,8 @@ def preview(request: Request, body: HardlinkRequest) -> dict:
         "will_skip": plan.will_skip,
         "collisions": list(plan.collisions),
         "files": [{"source_rel_path": f.source_rel_path,
-                   "dest_path": f.dest_path, "action": f.action}
+                   "dest_path": f.dest_path, "action": f.action,
+                   "existing_target": f.existing_target}
                   for f in plan.files],
     }
 

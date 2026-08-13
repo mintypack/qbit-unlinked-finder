@@ -32,6 +32,60 @@ def test_preview_plans_all_files(env):
     assert actions == {"e1.mkv": "LINK", "sub/e2.mkv": "LINK"}
 
 
+def test_renamed_destination_skips_instead_of_duplicating(tree):
+    tmp, downloads, tv = tree
+    t = make_torrent(downloads, "Show.S01", {"e1.mkv": b"a", "sub/e2.mkv": b"b"})
+    (tv / "Show.S01").mkdir(parents=True)
+    renamed = tv / "Show.S01" / "Show - S01E01 - Pilot.mkv"
+    os.link(downloads / "Show.S01" / "e1.mkv", renamed)
+    result = scan(scan_conf(downloads), [dest(tv)],
+                  QbitView.build([t], str(downloads)))
+    idx = Index.build(result.items)
+
+    plan = Linker(settings_for(downloads, tv)).preview(req(tv), idx)
+
+    assert plan.will_link == 1 and plan.will_skip == 1
+    by_path = {f.source_rel_path: f for f in plan.files}
+    assert by_path["e1.mkv"].action == "SKIP"
+    assert by_path["e1.mkv"].existing_target == str(renamed)
+    assert by_path["sub/e2.mkv"].action == "LINK"
+
+
+def test_renamed_destination_in_other_root_still_links(tree):
+    tmp, downloads, tv = tree
+    movies = tmp / "media" / "movies"
+    movies.mkdir(parents=True)
+    t = make_torrent(downloads, "Show.S01", {"e1.mkv": b"a"})
+    os.link(downloads / "Show.S01" / "e1.mkv", movies / "Renamed.mkv")
+    result = scan(scan_conf(downloads), [dest(tv), dest(movies)],
+                  QbitView.build([t], str(downloads)))
+    idx = Index.build(result.items)
+
+    # Linked into movies, so linking into tv is still legitimate work
+    plan = Linker(settings_for(downloads, tv)).preview(req(tv), idx)
+
+    assert plan.will_link == 1 and plan.will_skip == 0
+    assert plan.files[0].action == "LINK"
+
+
+def test_stale_link_target_falls_back_to_linking(tree):
+    tmp, downloads, tv = tree
+    t = make_torrent(downloads, "Show.S01", {"e1.mkv": b"a"})
+    (tv / "Show.S01").mkdir(parents=True)
+    renamed = tv / "Show.S01" / "Show - S01E01 - Pilot.mkv"
+    os.link(downloads / "Show.S01" / "e1.mkv", renamed)
+    result = scan(scan_conf(downloads), [dest(tv)],
+                  QbitView.build([t], str(downloads)))
+    idx = Index.build(result.items)
+    # Target disappears after the scan recorded it
+    renamed.unlink()
+
+    plan = Linker(settings_for(downloads, tv)).preview(req(tv), idx)
+
+    assert plan.will_link == 1 and plan.will_skip == 0
+    assert plan.files[0].action == "LINK"
+
+
 def test_single_file_item_links_to_dest_path(tree):
     _, downloads, tv = tree
     f = downloads / "old.mkv"

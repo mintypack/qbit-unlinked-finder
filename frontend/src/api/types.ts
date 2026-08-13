@@ -70,6 +70,7 @@ export interface PlanFile {
   source_rel_path: string;
   dest_path: string;
   action: "LINK" | "SKIP" | "COLLISION";
+  existing_target: string | null;
 }
 
 export interface Preview {

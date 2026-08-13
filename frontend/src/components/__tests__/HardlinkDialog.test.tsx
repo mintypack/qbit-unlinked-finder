@@ -38,13 +38,18 @@ const item: Item = {
   added_at: 0,
 };
 
-function renderDialog() {
+function renderDialog(overrides?: Partial<Item>) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={qc}>
-      <HardlinkDialog item={item} roots={roots} open onClose={() => {}} />
+      <HardlinkDialog
+        item={{ ...item, ...overrides }}
+        roots={roots}
+        open
+        onClose={() => {}}
+      />
     </QueryClientProvider>,
   );
 }
@@ -53,6 +58,14 @@ test("preselects root from category and subpath from name", () => {
   renderDialog();
   expect(screen.getByLabelText(/destination/i)).toHaveTextContent("Movies");
   expect(screen.getByLabelText(/subpath/i)).toHaveValue("Example.Movie.2024");
+});
+
+test("subpath helper text describes a folder or a file", () => {
+  const { unmount } = renderDialog();
+  expect(screen.getByText(/folder created inside/i)).toBeInTheDocument();
+  unmount();
+  renderDialog({ is_dir: false, name: "movie.mkv" });
+  expect(screen.getByText(/file name inside/i)).toBeInTheDocument();
 });
 
 test("unlinkable root shows reason and disables preview", async () => {
@@ -69,7 +82,7 @@ test("collision in preview keeps confirm disabled", async () => {
     will_link: 0,
     will_skip: 0,
     collisions: ["/media/movies/Example.Movie.2024/f.mkv"],
-    files: [{ source_rel_path: "f.mkv", dest_path: "x", action: "COLLISION" }],
+    files: [{ source_rel_path: "f.mkv", dest_path: "x", action: "COLLISION", existing_target: null }],
   });
   renderDialog();
   expect(screen.getByRole("button", { name: /confirm/i })).toBeDisabled();
@@ -84,7 +97,7 @@ test("clean preview enables confirm and executes", async () => {
     will_link: 1,
     will_skip: 0,
     collisions: [],
-    files: [{ source_rel_path: "f.mkv", dest_path: "x", action: "LINK" }],
+    files: [{ source_rel_path: "f.mkv", dest_path: "x", action: "LINK", existing_target: null }],
   });
   vi.mocked(api.executeHardlink).mockResolvedValueOnce({
     dest_path: "x",
@@ -107,13 +120,31 @@ test("clean preview enables confirm and executes", async () => {
   );
 });
 
+test("skipped file names where it is already linked", async () => {
+  vi.mocked(api.previewHardlink).mockResolvedValueOnce({
+    dest_path: "/media/movies/Example.Movie.2024",
+    will_link: 0,
+    will_skip: 1,
+    collisions: [],
+    files: [{
+      source_rel_path: "f.mkv", dest_path: "x", action: "SKIP",
+      existing_target: "/media/movies/Example Movie (2024).mkv",
+    }],
+  });
+  renderDialog();
+  await userEvent.click(screen.getByRole("button", { name: /preview/i }));
+  expect(
+    await screen.findByText(/already at \/media\/movies\/Example Movie \(2024\)\.mkv/),
+  ).toBeInTheDocument();
+});
+
 test("editing subpath after preview requires a new preview", async () => {
   vi.mocked(api.previewHardlink).mockResolvedValue({
     dest_path: "/media/movies/Renamed",
     will_link: 1,
     will_skip: 0,
     collisions: [],
-    files: [{ source_rel_path: "f.mkv", dest_path: "x", action: "LINK" }],
+    files: [{ source_rel_path: "f.mkv", dest_path: "x", action: "LINK", existing_target: null }],
   });
   renderDialog();
   await userEvent.click(screen.getByRole("button", { name: /preview/i }));
