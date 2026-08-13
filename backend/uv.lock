@@ -422,7 +422,7 @@ wheels = [
 ]
 
 [[package]]
-name = "qbit-unlinked-finder"
+name = "qbit-unlinked-finder-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
