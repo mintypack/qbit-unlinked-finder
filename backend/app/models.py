@@ -46,6 +46,7 @@ class DownloadItem:
     link_status: LinkStatus
     non_portable: bool
     files: tuple[FileEntry, ...]
+    added_at: int = 0
 
 
 def aggregate_link_status(files: Sequence[FileEntry]) -> LinkStatus:

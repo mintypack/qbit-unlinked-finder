@@ -175,6 +175,7 @@ def _patched(index: Index, patch: LinkPatch) -> Index:
         category=item.category, managed_status=item.managed_status,
         link_status=aggregate_link_status(new_files),
         non_portable=item.non_portable, files=tuple(new_files),
+        added_at=item.added_at,
     )
     items = tuple(new_item if i.rel_path == item.rel_path else i
                   for i in index.items)

@@ -49,6 +49,7 @@ export interface Item {
   managed_status: ManagedStatus;
   link_status: LinkStatus;
   non_portable: boolean;
+  added_at: number;
 }
 
 export interface FileRow {

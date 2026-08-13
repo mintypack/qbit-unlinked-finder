@@ -3,7 +3,8 @@ from fastapi import APIRouter, HTTPException, Request
 router = APIRouter()
 
 ITEM_FIELDS = ("name", "rel_path", "is_dir", "total_size", "file_count",
-               "category", "managed_status", "link_status", "non_portable")
+               "category", "managed_status", "link_status", "non_portable",
+               "added_at")
 FILE_FIELDS = ("rel_path", "size", "nlink", "link_status", "linked_targets")
 
 

@@ -42,11 +42,24 @@ export function EntriesGrid({
           <Typography variant="body2" noWrap>
             {p.row.name}
           </Typography>
-          {p.row.category && (
-            <Chip size="small" variant="outlined" label={p.row.category} />
-          )}
         </Stack>
       ),
+    },
+    {
+      field: "category",
+      headerName: "Category",
+      width: 120,
+      renderCell: (p) =>
+        p.row.category ? (
+          <Chip size="small" variant="outlined" label={p.row.category} />
+        ) : null,
+    },
+    {
+      field: "added_at",
+      headerName: "Added",
+      width: 110,
+      valueFormatter: (value: number) =>
+        value ? new Date(value * 1000).toLocaleDateString() : "",
     },
     {
       field: "total_size",
@@ -117,6 +130,7 @@ export function EntriesGrid({
         }
         initialState={{
           pagination: { paginationModel: { pageSize: 100 } },
+          sorting: { sortModel: [{ field: "added_at", sort: "desc" }] },
         }}
         pageSizeOptions={[25, 50, 100]}
         sx={{ "& .MuiDataGrid-cell": { display: "flex", alignItems: "center" } }}

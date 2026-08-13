@@ -12,7 +12,7 @@ class FakeClient:
     def __init__(self):
         self.torrents = [FakeTorrent(hash="h1", name="Ubuntu", category="linux",
                                      content_path="/downloads/Ubuntu",
-                                     save_path="/downloads")]
+                                     save_path="/downloads", added_on=111)]
         self.files = {"h1": [FakeTorrent(name="Ubuntu/u.iso")]}
         self.maindata_rids = []
         self.fail = False
@@ -127,3 +127,8 @@ def test_last_error_tracked():
     fake.fail = False
     qc.poll()
     assert qc.last_error is None
+
+
+def test_fetch_all_carries_added_on():
+    qc = make(FakeClient())
+    assert qc.fetch_all()[0].added_on == 111

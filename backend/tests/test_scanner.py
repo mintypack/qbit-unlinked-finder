@@ -195,3 +195,17 @@ def test_inode_identity_uses_dev_and_ino(tree, monkeypatch):
     result = scan(scan_conf(downloads), [dest(tv)], view(downloads, t))
     # Same inode number, different dev: must NOT count as LINKED
     assert result.items[0].link_status == LinkStatus.LINKED_ELSEWHERE
+
+
+def test_added_at_from_qbit_or_mtime(tree):
+    _, downloads, tv = tree
+    t = make_torrent(downloads, "Aged", {"f.mkv": b"a"})
+    t = TorrentInfo(name=t.name, category=t.category, content_path=t.content_path,
+                    files=t.files, added_on=1700000000)
+    stray = downloads / "stray"
+    stray.mkdir()
+    (stray / "f.bin").write_bytes(b"x")
+    result = scan(scan_conf(downloads), [dest(tv)], view(downloads, t))
+    by_rel = {i.rel_path: i for i in result.items}
+    assert by_rel["Aged"].added_at == 1700000000
+    assert by_rel["stray"].added_at > 0

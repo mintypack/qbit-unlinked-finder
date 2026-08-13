@@ -35,6 +35,7 @@ const item: Item = {
   managed_status: "MANAGED",
   link_status: "UNLINKED",
   non_portable: false,
+  added_at: 0,
 };
 
 function renderDialog() {

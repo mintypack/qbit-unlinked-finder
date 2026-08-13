@@ -19,6 +19,7 @@ class TorrentInfo:
     category: str
     content_path: str
     files: tuple[str, ...]
+    added_on: int = 0
 
 
 class QbitClient:
@@ -59,6 +60,7 @@ class QbitClient:
                     category=t.category or "",
                     content_path=os.path.normpath(self._mapper.map(t.content_path)),
                     files=files,
+                    added_on=int(getattr(t, "added_on", 0) or 0),
                 ))
             self._mark_ok()
             return out

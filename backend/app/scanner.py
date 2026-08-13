@@ -204,6 +204,7 @@ def _build_item(abs_path, rel, is_dir, files, dest_map, downloads_paths, qbit_vi
             nlink=st.st_nlink, link_status=status, linked_targets=targets,
         ))
     name = os.path.basename(abs_path)
+    added_at = 0
     if qbit_view is None:
         managed = ManagedStatus.UNKNOWN
         category = ""
@@ -211,10 +212,17 @@ def _build_item(abs_path, rel, is_dir, files, dest_map, downloads_paths, qbit_vi
         info = qbit_view.torrent_roots.get(abs_path)
         if info is not None:
             managed, category = ManagedStatus.MANAGED, info.category
+            added_at = info.added_on
         elif not is_dir and abs_path in qbit_view.managed_files:
             managed, category = ManagedStatus.MANAGED, ""
         else:
             managed, category = ManagedStatus.UNMANAGED, ""
+    if added_at == 0:
+        # Fallback so unmanaged items still sort by age
+        try:
+            added_at = int(os.stat(abs_path, follow_symlinks=False).st_mtime)
+        except OSError:
+            added_at = 0
     portable = is_portable(rel)
     return DownloadItem(
         name=name if portable else sanitize(name),
@@ -227,4 +235,5 @@ def _build_item(abs_path, rel, is_dir, files, dest_map, downloads_paths, qbit_vi
         link_status=aggregate_link_status(entries),
         non_portable=not portable,
         files=tuple(entries),
+        added_at=added_at,
     )
