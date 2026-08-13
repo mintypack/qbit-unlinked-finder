@@ -1,0 +1,12 @@
+services:
+  qbit-unlinked-finder:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      - QUF_QBITTORRENT__PASSWORD=${QBIT_PASSWORD}
+    volumes:
+      - ./config.toml:/config/config.toml:ro
+      # One parent mount; hardlinks cannot cross separate bind mounts
+      - /mnt/pool:/data
+
