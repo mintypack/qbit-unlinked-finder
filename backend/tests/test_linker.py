@@ -108,3 +108,94 @@ def test_collision_listed_in_preview_same_inode_skipped(env):
     assert actions == {"e1.mkv": "SKIP", "sub/e2.mkv": "COLLISION"}
     assert plan.will_link == 0 and plan.will_skip == 1
     assert plan.collisions == (str(destdir / "sub" / "e2.mkv"),)
+
+
+def test_execute_links_folder_tree(env):
+    settings, idx, downloads, tv = env
+    r = Linker(settings).execute(req(tv), idx)
+    assert r.linked == 2 and r.skipped == 0 and r.rolled_back is False
+    src = os.stat(downloads / "Show.S01" / "sub" / "e2.mkv")
+    dst = os.stat(tv / "Show.S01" / "sub" / "e2.mkv")
+    assert (src.st_dev, src.st_ino) == (dst.st_dev, dst.st_ino)
+    assert r.patch.item_rel_path == "Show.S01"
+    assert r.patch.file_targets["e1.mkv"] == str(tv / "Show.S01" / "e1.mkv")
+
+
+def test_execute_completes_partial_by_skipping(env):
+    settings, idx, downloads, tv = env
+    linker = Linker(settings)
+    linker.execute(req(tv), idx)
+    r = linker.execute(req(tv), idx)
+    assert r.linked == 0 and r.skipped == 2
+
+
+def test_execute_refuses_collision(env):
+    settings, idx, downloads, tv = env
+    (tv / "Show.S01").mkdir()
+    (tv / "Show.S01" / "e1.mkv").write_bytes(b"foreign")
+    with pytest.raises(LinkError) as e:
+        Linker(settings).execute(req(tv), idx)
+    assert e.value.code == "COLLISION"
+    assert not (tv / "Show.S01" / "sub").exists()
+
+
+def test_exdev_mid_plan_rolls_back(env, monkeypatch):
+    settings, idx, downloads, tv = env
+    real_link = os.link
+    calls = []
+
+    def flaky_link(src, dst, **kw):
+        calls.append(dst)
+        if len(calls) == 2:
+            raise OSError(18, "Invalid cross-device link")
+        return real_link(src, dst, **kw)
+
+    monkeypatch.setattr(os, "link", flaky_link)
+    with pytest.raises(LinkError) as e:
+        Linker(settings).execute(req(tv), idx)
+    assert e.value.code == "CROSS_FILESYSTEM"
+    assert e.value.rolled_back is True
+    assert not (tv / "Show.S01").exists()
+
+
+def test_rollback_leaves_foreign_file(env, monkeypatch):
+    settings, idx, downloads, tv = env
+    real_link = os.link
+
+    def evil_link(src, dst, **kw):
+        real_link(src, dst, **kw)
+        if str(dst).endswith("e1.mkv"):
+            os.unlink(dst)
+            with open(dst, "wb") as fh:
+                fh.write(b"foreign")
+            raise OSError(5, "boom")
+
+    monkeypatch.setattr(os, "link", evil_link)
+    with pytest.raises(LinkError) as e:
+        Linker(settings).execute(req(tv), idx)
+    assert e.value.code == "LINK_FAILED"
+    # Created dir cannot be removed while the foreign file sits in it
+    assert e.value.rolled_back is False
+    foreign = tv / "Show.S01" / "e1.mkv"
+    assert foreign.read_bytes() == b"foreign"
+
+
+def test_concurrent_executes_serialize(env):
+    import threading as th
+    settings, idx, downloads, tv = env
+    linker = Linker(settings)
+    results = []
+
+    def run():
+        try:
+            results.append(linker.execute(req(tv), idx))
+        except LinkError as err:
+            results.append(err)
+
+    threads = [th.Thread(target=run) for _ in range(2)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    oks = [r for r in results if not isinstance(r, LinkError)]
+    total_linked = sum(r.linked for r in oks)
+    total_skipped = sum(r.skipped for r in oks)
+    assert total_linked == 2 and total_linked + total_skipped == 4

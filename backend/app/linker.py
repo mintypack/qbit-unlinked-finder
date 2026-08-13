@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import errno
 import os
 import threading
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -41,6 +43,21 @@ class Plan:
     will_link: int
     will_skip: int
     collisions: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class LinkPatch:
+    item_rel_path: str
+    file_targets: Mapping[str, str]
+
+
+@dataclass(frozen=True, slots=True)
+class ExecuteResult:
+    dest_path: str
+    linked: int
+    skipped: int
+    rolled_back: bool
+    patch: LinkPatch
 
 
 def _dev_of(path: Path) -> int:
@@ -105,3 +122,73 @@ class Linker:
     def preview(self, req: HardlinkRequest, index: Index) -> Plan:
         item, source, dest = self._validate(req, index)
         return self._plan(item, source, dest)
+
+    def execute(self, req: HardlinkRequest, index: Index) -> ExecuteResult:
+        with self._lock:
+            # Never trust a previous preview, re-validate from scratch
+            item, source, dest = self._validate(req, index)
+            plan = self._plan(item, source, dest)
+            if plan.collisions:
+                raise LinkError("COLLISION",
+                                f"existing file differs: {plan.collisions[0]}")
+            created_dirs: list[Path] = []
+            created_links: list[tuple[Path, tuple[int, int]]] = []
+            try:
+                for pf in plan.files:
+                    if pf.action != "LINK":
+                        continue
+                    target = Path(pf.dest_path)
+                    self._mkdirs(target.parent, created_dirs)
+                    src = source / pf.source_rel_path if item.is_dir else source
+                    st = os.stat(src, follow_symlinks=False)
+                    os.link(src, target)
+                    created_links.append((target, (st.st_dev, st.st_ino)))
+            except OSError as exc:
+                rolled_back = self._rollback(created_links, created_dirs)
+                if exc.errno == errno.EXDEV:
+                    raise LinkError(
+                        "CROSS_FILESYSTEM",
+                        "link failed with EXDEV despite matching st_dev. On union "
+                        "filesystems (mergerfs, unRAID) source and destination can "
+                        "land on different branches.",
+                        rolled_back=rolled_back) from exc
+                raise LinkError("LINK_FAILED", str(exc),
+                                rolled_back=rolled_back) from exc
+            targets = {pf.source_rel_path: pf.dest_path
+                       for pf in plan.files if pf.action == "LINK"}
+            return ExecuteResult(
+                dest_path=plan.dest_path,
+                linked=plan.will_link,
+                skipped=plan.will_skip,
+                rolled_back=False,
+                patch=LinkPatch(item_rel_path=item.rel_path, file_targets=targets),
+            )
+
+    def _mkdirs(self, directory: Path, created: list[Path]) -> None:
+        missing: list[Path] = []
+        d = directory
+        while not d.exists():
+            missing.append(d)
+            d = d.parent
+        for d in reversed(missing):
+            d.mkdir()
+            created.append(d)
+
+    def _rollback(self, links: list[tuple[Path, tuple[int, int]]],
+                  dirs: list[Path]) -> bool:
+        # Best effort: report failure to undo, never raise over the original
+        ok = True
+        for path, key in reversed(links):
+            try:
+                st = os.stat(path, follow_symlinks=False)
+                if (st.st_dev, st.st_ino) == key:
+                    os.unlink(path)
+                # A foreign inode at our path is left alone
+            except OSError:
+                ok = False
+        for d in reversed(dirs):
+            try:
+                d.rmdir()
+            except OSError:
+                ok = False
+        return ok
