@@ -301,6 +301,3 @@ cython_debug/
 # The Python template lib/ pattern must not swallow frontend sources
 !frontend/src/lib/
 !frontend/src/lib/**
-
-# Local-only project readme, kept out of the repo
-/README.md
