@@ -26,7 +26,7 @@ class QbitConfig(BaseModel):
 class ScanConfig(BaseModel):
     downloads_root: Path
     incomplete_dir: Path | None = None
-    rescan_interval_seconds: int = 900
+    rescan_interval_seconds: int = 86400
 
 
 class DestinationRoot(BaseModel):

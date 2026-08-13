@@ -16,10 +16,11 @@ to = "/data/downloads"
 downloads_root = "/data/downloads"
 # Optional. Excluded from scanning.
 #incomplete_dir = "/data/downloads/.incomplete"
-# Full rescan interval in seconds. 0 disables the periodic rescan; link
-# status then refreshes on startup, qBittorrent events, hardlink actions,
-# and the manual rescan button.
-rescan_interval_seconds = 900
+# Full rescan interval in seconds, once a day by default. Frequent scans
+# keep spinning disks awake. 0 disables the periodic rescan; link status
+# then refreshes on startup, qBittorrent events, hardlink actions, and the
+# manual rescan button.
+rescan_interval_seconds = 86400
 
 # One block per destination root. Optional categories preselect this root
 # in the hardlink dialog for those qBittorrent categories.
