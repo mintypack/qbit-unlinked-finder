@@ -1,3 +1,8 @@
+<div style="display: flex; justify-content: center; align-items: center;">
+  <img src="/assets/qbit-link-finder-logo.png" width="200" />
+</div>
+
+
 # qbit-unlinked-finder
 
 Web UI that answers two questions about a qBittorrent downloads folder: which
