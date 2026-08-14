@@ -10,6 +10,11 @@ database; the index lives in memory, built by a full scan at startup and
 refreshed when qBittorrent reports torrent changes, on a daily timer, or on
 demand.
 
+# Screenshots
+
+![](/assets/screenshot-1.png)
+![](/assets/screenshot-2.png)
+
 ## Requirements
 
 - Downloads and every destination root must live on one host filesystem,
